@@ -64,7 +64,7 @@ class RandomAugment_dualpix_rgb(object):
         sample[2::2,:,:] = img
         return sample
 
-class RandomAugment_normalpix_rgb(object):
+class RandomAugment_stdpix_rgb(object):
     """Randomly change the brightness and sharpness"""
     def __init__(self): 
         pass 

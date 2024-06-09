@@ -16,190 +16,19 @@ from glob import glob
 
 from utils.io import read_pfm
 from utils.transforms import *
-    
-class testScenesDataset(Dataset):
-    def __init__(self, dataroot_dir, train=False, train_val_split=False, N_scenes=0, transform=None, split_seed=0, scene_channels='dualpix_only'):
-        self.dataroot_dir = dataroot_dir
-        if train: 
-            raise NotImplementedError
-        else: 
-            all_gt_scene_files = sorted([join(dataroot_dir, 'scenes', f) \
-                                    for f in os.listdir(join(dataroot_dir, 'scenes')) \
-                                    if isfile(join(dataroot_dir, 'scenes', f))])
-            all_gt_depth_files = sorted([join(dataroot_dir, 'depths', f) \
-                                    for f in os.listdir(join(dataroot_dir, 'depths')) \
-                                    if isfile(join(dataroot_dir, 'depths', f))])
-        N_scenes = len(all_gt_scene_files)
-        indices_list = np.arange(N_scenes)
-        indices_list_perm = indices_list
-        self.all_gt_scene_files = [all_gt_scene_files[x] for x in indices_list_perm]
-        self.all_gt_depth_files = [all_gt_depth_files[x] for x in indices_list_perm]
-        self.transform = transform
-        self.scene_channels = scene_channels
-
-    def __len__(self):
-        return len(self.all_gt_scene_files)
-    
-    def __getitem__(self, idx):
-        image = skimage.io.imread(self.all_gt_scene_files[idx]).astype(np.float32) / 255.0     # read image and covert it to [0, 1] range
-        if self.scene_channels=='dualpix_only' or self.scene_channels=='normalpix_only':
-            image = image[:,:,1]    # select green channel only
-        image[image<0] = 0
-        image = image / (image.max() + 1e-7)
-
-        depth_filename = self.all_gt_scene_files[idx].replace('scene_', 'depth_')
-        depth_filename = depth_filename.replace('scenes/', 'depths/')
-        dmap = skimage.io.imread(depth_filename).astype(np.float32) / 255.0
-
-        # convert depth map range to the range you want
-        dmap = dmap - np.min(dmap)
-        dmap = dmap.astype(np.float32)/(np.max(dmap)+1e-6)
-        if self.scene_channels=='dualpix_only': 
-            sample = np.stack((dmap, image), axis=0)
-        if self.scene_channels=='dualpix+red+blue': 
-            sample = np.stack((dmap, image[:,:,1], image[:,:,1], image[:,:,0], image[:,:,2]), axis=0) # add red and blue channels as well
-        if self.scene_channels=='normalpix_only':
-            sample = np.stack((dmap, image), axis=0)
-        if self.scene_channels=='normalpix+red+blue':
-            sample = np.stack((dmap, image[:,:,1], image[:,:,0], image[:,:,2]), axis=0) # add red and blue channels as well 
-        if self.scene_channels=='dualpix_rgb':
-            sample = np.stack((dmap, image[:,:,0], image[:,:,0], image[:,:,1], image[:,:,1], image[:,:,2], image[:,:,2]))
-        if self.scene_channels=='normalpix_rgb':
-            sample = np.stack((dmap, image[:,:,0], image[:,:,1], image[:,:,2]))
-        if self.transform:
-            sample = self.transform(sample)
-        return sample
-
-class RedwebDataset(Dataset):
-    def __init__(self, dataroot_dir, train=False, N_scenes=0, transform=None, scene_channels='dualpix_only'):
-        all_gt_scene_files = [join(dataroot_dir, 'Imgs/', f) \
-                                for f in os.listdir(join(dataroot_dir, 'Imgs/')) \
-                                if isfile(join(dataroot_dir, 'Imgs/', f))]
-        all_gt_scene_files.sort()
-        all_gt_depth_files = [join(dataroot_dir, 'RDs/', f) \
-                                for f in os.listdir(join(dataroot_dir, 'RDs/')) \
-                                if isfile(join(dataroot_dir, 'RDs/', f))]
-        all_gt_depth_files.sort()
-        if N_scenes: 
-            indices_list = np.arange(N_scenes)
-        else:
-            N_scenes = len(all_gt_scene_files)
-            indices_list = np.arange(N_scenes)
-        old_seed = np.random.get_state()
-        np.random.seed(0)
-        indices_list_perm = np.random.permutation(indices_list)
-        np.random.set_state(old_seed)
-        self.all_gt_scene_files = [all_gt_scene_files[x] for x in indices_list_perm]
-        self.all_gt_depth_files = [all_gt_depth_files[x] for x in indices_list_perm]
-        N_train = int(0.8*N_scenes)
-        if train: 
-            self.all_gt_scene_files = self.all_gt_scene_files[:N_train]
-            self.all_gt_depth_files = self.all_gt_depth_files[:N_train] 
-        else: 
-            self.all_gt_scene_files = self.all_gt_scene_files[N_train:]
-            self.all_gt_depth_files = self.all_gt_depth_files[N_train:]
-        self.transform = transform
-        self.scene_channels = scene_channels
-    
-    def __len__(self):
-        return len(self.all_gt_depth_files)
-    
-    def __getitem__(self, idx):
-        image = cv2.imread(self.all_gt_scene_files[idx], cv2.IMREAD_UNCHANGED)
-        width = int(image.shape[1] * 300 / 100)
-        height = int(image.shape[0] * 300 / 100)
-        dim = (width, height)
-        image = cv2.resize(image, dim, interpolation=cv2.INTER_AREA)
-        image = image[:,:,::-1].astype(np.float32)/255.
-        dmap = cv2.imread(self.all_gt_depth_files[idx], cv2.IMREAD_UNCHANGED)
-        dmap = cv2.resize(dmap, dim, interpolation=cv2.INTER_AREA)
-        dmap = dmap.astype(np.float32)/255.
-        dmap = (dmap - dmap.min())/(dmap.max()-dmap.min())
-        if self.scene_channels=='dualpix_only': #if self.dualpix_only:
-            image = image[:,:,1]
-            sample = np.stack((dmap, image), axis=0)
-        if self.scene_channels=='dualpix+red+blue': #else:
-            sample = np.stack((dmap, image[:,:,1], image[:,:,1], image[:,:,0], image[:,:,2]), axis=0) # add red and blue channels as well
-        if self.scene_channels=='normalpix_only':
-            image = image[:,:,1]
-            sample = np.stack((dmap, image), axis=0)
-        if self.scene_channels=='normalpix+red+blue':
-            sample = np.stack((dmap, image[:,:,1], image[:,:,0], image[:,:,2]), axis=0) # add red and blue channels as well
-        if self.scene_channels=='dualpix_rgb':
-            sample = np.stack((dmap, image[:,:,0], image[:,:,0], image[:,:,1], image[:,:,1], image[:,:,2], image[:,:,2]))
-        if self.scene_channels=='normalpix_rgb':
-            sample = np.stack((dmap, image[:,:,0], image[:,:,1], image[:,:,2]))
-        if self.transform:
-            sample = self.transform(sample)
-        return sample
-
-class nyuD2TrainDataset(Dataset):
-    def __init__(self, dataroot_dir, train=False, N_scenes=0, transform=None, scene_channels='dualpix_only'):
-        all_gt_scene_files = [y for x in os.walk(join(dataroot_dir, 'nyu2_train/')) for y in glob(os.path.join(x[0], '*.jpg'))]
-        all_gt_scene_files.sort()
-        all_gt_depth_files = [y for x in os.walk(join(dataroot_dir, 'nyu2_train/')) for y in glob(os.path.join(x[0], '*.png'))]
-        all_gt_depth_files.sort()
-        if N_scenes: 
-            indices_list = np.arange(N_scenes)
-        else:
-            N_scenes = len(all_gt_scene_files)
-            indices_list = np.arange(N_scenes)
-        old_seed = np.random.get_state()
-        np.random.seed(0)
-        indices_list_perm = np.random.permutation(indices_list)
-        np.random.set_state(old_seed)
-        self.all_gt_scene_files = [all_gt_scene_files[x] for x in indices_list_perm]
-        self.all_gt_depth_files = [all_gt_depth_files[x] for x in indices_list_perm]
-        N_train = int(0.8*N_scenes)
-        if train: 
-            self.all_gt_scene_files = self.all_gt_scene_files[:N_train]
-            self.all_gt_depth_files = self.all_gt_depth_files[:N_train] 
-        else: 
-            self.all_gt_scene_files = self.all_gt_scene_files[N_train:]
-            self.all_gt_depth_files = self.all_gt_depth_files[N_train:]
-        self.transform = transform
-        self.scene_channels = scene_channels
-    
-    def __len__(self):
-        return len(self.all_gt_depth_files)
-    
-    def __getitem__(self, idx):
-        image = cv2.imread(self.all_gt_scene_files[idx], cv2.IMREAD_UNCHANGED)
-        image = image[:,:,::-1].astype(np.float32)/255.
-        dmap = cv2.imread(self.all_gt_depth_files[idx], cv2.IMREAD_UNCHANGED)
-        dmap = dmap.astype(np.float32)/255.
-        dmap = (dmap - dmap.min())/(dmap.max()-dmap.min())
-        if self.scene_channels=='dualpix_only': #if self.dualpix_only:
-            image = image[:,:,1]
-            sample = np.stack((dmap, image), axis=0)
-        if self.scene_channels=='dualpix+red+blue': #else:
-            sample = np.stack((dmap, image[:,:,1], image[:,:,1], image[:,:,0], image[:,:,2]), axis=0) # add red and blue channels as well
-        if self.scene_channels=='normalpix_only':
-            image = image[:,:,1]
-            sample = np.stack((dmap, image), axis=0)
-        if self.scene_channels=='normalpix+red+blue':
-            sample = np.stack((dmap, image[:,:,1], image[:,:,0], image[:,:,2]), axis=0) # add red and blue channels as well
-        if self.scene_channels=='dualpix_rgb':
-            sample = np.stack((dmap, image[:,:,0], image[:,:,0], image[:,:,1], image[:,:,1], image[:,:,2], image[:,:,2]))
-        if self.scene_channels=='normalpix_rgb':
-            sample = np.stack((dmap, image[:,:,0], image[:,:,1], image[:,:,2]))
-        if self.transform:
-            sample = self.transform(sample)
-        return sample
-
 
 class nyuD2TestDataset(Dataset): 
-    def __init__(self, dataroot_dir, train=False, N_scenes=0, transform=None, scene_channels='dualpix_only'):
+    def __init__(self, dataroot_dir, train=False, N_scenes=0, transform=None, scene_channels='dualpix_mono'):
         if train:
             raise NotImplementedError
         else: 
             all_gt_scene_files = [join(dataroot_dir, 'nyu2_test/', f) \
-                                    for f in os.listdir(join(dataroot_dir, 'nyu2_test/')) \
-                                    if isfile(join(dataroot_dir, 'nyu2_test/', f)) and 'colors' in f]
+                                for f in os.listdir(join(dataroot_dir, 'nyu2_test/')) \
+                                if isfile(join(dataroot_dir, 'nyu2_test/', f)) and 'colors' in f]
             all_gt_scene_files.sort()
             all_gt_depth_files = [join(dataroot_dir, 'nyu2_test/', f) \
-                                    for f in os.listdir(join(dataroot_dir, 'nyu2_test/')) \
-                                    if isfile(join(dataroot_dir, 'nyu2_test/', f)) and 'depth' in f]
+                                for f in os.listdir(join(dataroot_dir, 'nyu2_test/')) \
+                                if isfile(join(dataroot_dir, 'nyu2_test/', f)) and 'depth' in f]
             all_gt_depth_files.sort()
         if N_scenes: 
             indices_list = np.arange(N_scenes)
@@ -227,19 +56,15 @@ class nyuD2TestDataset(Dataset):
         dmap = cv2.imread(self.all_gt_depth_files[idx], cv2.IMREAD_UNCHANGED)
         dmap = dmap.astype(np.float32)/65535.
         dmap = (dmap - dmap.min())/(dmap.max()-dmap.min())
-        if self.scene_channels=='dualpix_only': #if self.dualpix_only:
+        if self.scene_channels=='dualpix_mono': 
             image = image[:,:,1]
             sample = np.stack((dmap, image), axis=0)
-        if self.scene_channels=='dualpix+red+blue': #else:
-            sample = np.stack((dmap, image[:,:,1], image[:,:,1], image[:,:,0], image[:,:,2]), axis=0) # add red and blue channels as well
-        if self.scene_channels=='normalpix_only':
+        if self.scene_channels=='stdpix_green':
             image = image[:,:,1]
             sample = np.stack((dmap, image), axis=0)
-        if self.scene_channels=='normalpix+red+blue':
-            sample = np.stack((dmap, image[:,:,1], image[:,:,0], image[:,:,2]), axis=0) # add red and blue channels as well
         if self.scene_channels=='dualpix_rgb':
             sample = np.stack((dmap, image[:,:,0], image[:,:,0], image[:,:,1], image[:,:,1], image[:,:,2], image[:,:,2]))
-        if self.scene_channels=='normalpix_rgb':
+        if self.scene_channels=='stdpix_rgb':
             sample = np.stack((dmap, image[:,:,0], image[:,:,1], image[:,:,2]))
         if self.transform:
             sample = self.transform(sample)
@@ -247,7 +72,7 @@ class nyuD2TestDataset(Dataset):
 
 
 class flyingthings3dDataset(Dataset):
-    def __init__(self, dataroot_dir, train=False, train_val_split=False, N_scenes=0, transform=None, split_seed=0, scene_channels='dualpix_only'):
+    def __init__(self, dataroot_dir, train=False, train_val_split=False, N_scenes=0, transform=None, split_seed=0, scene_channels='dualpix_mono'):
         self.dataroot_dir = dataroot_dir
         if train:   # load training dataset files
             all_gt_scene_files = [join(dataroot_dir, 'train/image_clean/left', f) \
@@ -291,7 +116,7 @@ class flyingthings3dDataset(Dataset):
     def __getitem__(self, idx):
         with PIL.Image.open(self.all_gt_scene_files[idx]) as f:
             image = np.array(f)
-            if self.scene_channels=='dualpix_only' or self.scene_channels=='normalpix_only':
+            if self.scene_channels=='dualpix_mono' or self.scene_channels=='stdpix_mono':
                 image = image[:,:,1]
             image[image < 0] = 0
             image = image.astype(np.float32)/np.max(image)
@@ -299,17 +124,13 @@ class flyingthings3dDataset(Dataset):
         # dmap[dmap < 0] = 0
         dmap = dmap - np.min(dmap)
         dmap = dmap.astype(np.float32)/np.max(dmap)
-        if self.scene_channels=='dualpix_only': #if self.dualpix_only:
+        if self.scene_channels=='dualpix_mono': #if self.dualpix_mono:
             sample = np.stack((dmap, image), axis=0)
-        if self.scene_channels=='dualpix+red+blue': #else:
-            sample = np.stack((dmap, image[:,:,1], image[:,:,1], image[:,:,0], image[:,:,2]), axis=0) # add red and blue channels as well
-        if self.scene_channels=='normalpix_only':
+        if self.scene_channels=='stdpix_mono':
             sample = np.stack((dmap, image), axis=0)
-        if self.scene_channels=='normalpix+red+blue':
-            sample = np.stack((dmap, image[:,:,1], image[:,:,0], image[:,:,2]), axis=0) # add red and blue channels as well
         if self.scene_channels=='dualpix_rgb':
             sample = np.stack((dmap, image[:,:,0], image[:,:,0], image[:,:,1], image[:,:,1], image[:,:,2], image[:,:,2]))
-        if self.scene_channels=='normalpix_rgb':
+        if self.scene_channels=='stdpix_rgb':
             sample = np.stack((dmap, image[:,:,0], image[:,:,1], image[:,:,2]))
         if self.transform:
             sample = self.transform(sample)
@@ -317,7 +138,7 @@ class flyingthings3dDataset(Dataset):
 
 
 class endoslamDataset(Dataset):
-    def __init__(self, dataroot_dir, train=False, train_val_split=False, N_scenes=0, transform=None, split_seed=0, scene_channels='dualpix_only'):
+    def __init__(self, dataroot_dir, train=False, train_val_split=False, N_scenes=0, transform=None, split_seed=0, scene_channels='dualpix_mono'):
         self.dataroot_dir = dataroot_dir
         if train:   # load training dataset files
             all_gt_scene_files_intestine = sorted([join(dataroot_dir, 'small_intestine/Frames', f) \
@@ -374,7 +195,7 @@ class endoslamDataset(Dataset):
         image = skimage.io.imread(self.all_gt_scene_files[idx]) / 255.0
         
         image = cv2.undistort(image, self.K, self.dist, None)
-        if self.scene_channels=='dualpix_only' or self.scene_channels=='normalpix_only':
+        if self.scene_channels=='dualpix_mono' or self.scene_channels=='stdpix_mono':
             image = image[:,:,1]
         image[image < 0] = 0
         image = image.astype(np.float32)
@@ -391,17 +212,13 @@ class endoslamDataset(Dataset):
         dmap = dmap - np.min(dmap)
         dmap = dmap.astype(np.float32)/(np.max(dmap)+1e-6) 
         dmap = 1.0-dmap
-        if self.scene_channels=='dualpix_only': 
+        if self.scene_channels=='dualpix_mono': 
             sample = np.stack((dmap, image), axis=0)
-        if self.scene_channels=='dualpix+red+blue': 
-            sample = np.stack((dmap, image[:,:,1], image[:,:,1], image[:,:,0], image[:,:,2]), axis=0) # add red and blue channels as well
-        if self.scene_channels=='normalpix_only':
+        if self.scene_channels=='stdpix_mono':
             sample = np.stack((dmap, image), axis=0)
-        if self.scene_channels=='normalpix+red+blue':
-            sample = np.stack((dmap, image[:,:,1], image[:,:,0], image[:,:,2]), axis=0) # add red and blue channels as well 
         if self.scene_channels=='dualpix_rgb':
             sample = np.stack((dmap, image[:,:,0], image[:,:,0], image[:,:,1], image[:,:,1], image[:,:,2], image[:,:,2]))
-        if self.scene_channels=='normalpix_rgb':
+        if self.scene_channels=='stdpix_rgb':
             sample = np.stack((dmap, image[:,:,0], image[:,:,1], image[:,:,2]))
         if self.transform:
             sample = self.transform(sample)
@@ -468,19 +285,6 @@ def prepare_dataset(args, training=True, train_val_split=False):
         else: 
             tfm_lst = [to_tensor()]
             dataset = TestCanonDPDBlurDataset(args.dataroot, train=training, N_scenes=74, transform=tfm.Compose(tfm_lst))
-    elif args.dataset_type=='redweb':
-        if training:
-            tfm_lst = [RescaleDepthMap(args.min_depth_mm, args.max_depth_mm), to_tensor(), tfm.RandomCrop(316), tfm.RandomHorizontalFlip(), tfm.RandomVerticalFlip()]
-        else:
-            tfm_lst = [RescaleDepthMap(args.min_depth_mm, args.max_depth_mm), to_tensor(), tfm.CenterCrop(316)]
-        dataset = RedwebDataset(args.dataroot, train=training, N_scenes=args.N_renders_override, transform=tfm.Compose(tfm_lst), scene_channels=args.scene_channels)
-    elif args.dataset_type=='nyu2_train':
-        if training: 
-            tfm_lst = [RescaleDepthMap(args.min_depth_mm, args.max_depth_mm), to_tensor(), tfm.RandomCrop(316), tfm.RandomHorizontalFlip(), tfm.RandomVerticalFlip()]
-            dataset = nyuD2TrainDataset(args.dataroot, train=training, N_scenes=args.N_renders_override, transform=tfm.Compose(tfm_lst), scene_channels=args.scene_channels)
-        else: 
-            tfm_lst = [RescaleDepthMap(args.min_depth_mm, args.max_depth_mm), to_tensor(), tfm.CenterCrop((420,564))]
-            dataset = nyuD2TrainDataset(args.dataroot, train=training, N_scenes=args.N_renders_override, transform=tfm.Compose(tfm_lst), scene_channels=args.scene_channels)
     elif args.dataset_type=='nyu2_test':
         tfm_lst = [RescaleDepthMap(args.in_focus_dist_mm, args.max_depth_mm), to_tensor(), tfm.CenterCrop((420,564))]
         dataset = nyuD2TestDataset(args.dataroot, train=False, N_scenes=args.N_renders_override, transform=tfm.Compose(tfm_lst), scene_channels=args.scene_channels)
@@ -490,8 +294,8 @@ def prepare_dataset(args, training=True, train_val_split=False):
             if args.finetune:
                 if args.scene_channels=="dualpix_rgb":
                     tfm_lst = [RescaleDepthMapRng(args.min_depth_mm, args.max_depth_mm), to_tensor(), RandomAugment_dualpix_rgb(), tfm.RandomCrop(316), tfm.RandomHorizontalFlip(), tfm.RandomVerticalFlip()]
-                elif args.scene_channels=="normalpix_rgb":
-                    tfm_lst = [RescaleDepthMapRng(args.min_depth_mm, args.max_depth_mm), to_tensor(), RandomAugment_normalpix_rgb(), tfm.RandomCrop(316), tfm.RandomHorizontalFlip(), tfm.RandomVerticalFlip()]
+                elif args.scene_channels=="stdpix_rgb":
+                    tfm_lst = [RescaleDepthMapRng(args.min_depth_mm, args.max_depth_mm), to_tensor(), RandomAugment_stdpix_rgb(), tfm.RandomCrop(316), tfm.RandomHorizontalFlip(), tfm.RandomVerticalFlip()]
                 else:
                     tfm_lst = [RescaleDepthMapRng(args.min_depth_mm, args.max_depth_mm), to_tensor(), RandomAugment(), tfm.RandomCrop(316), tfm.RandomHorizontalFlip(), tfm.RandomVerticalFlip()]
             dataset = flyingthings3dDataset(args.dataroot, train=training, 

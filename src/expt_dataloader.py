@@ -75,7 +75,7 @@ class TestCanonRGBDataset(Dataset):
         img_r = img_r / (self.calib_right+1e-3)
         if self.scene_channels=='dualpix_rgb':
             sample = np.stack((2*img_l[:,:,0], 2*img_r[:,:,0], 2*img_l[:,:,1], 2*img_r[:,:,1], 2*img_l[:,:,2], 2*img_r[:,:,2]), axis=0)
-        elif self.scene_channels=='normalpix_rgb':
+        elif self.scene_channels=='stdpix_rgb':
             sample = np.stack((img_l[:,:,0]+img_r[:,:,0], img_l[:,:,1]+img_r[:,:,1], img_l[:,:,2]+img_r[:,:,2]), axis=0)
         else: 
             raise NotImplementedError
@@ -85,7 +85,7 @@ class TestCanonRGBDataset(Dataset):
         return sample
 
 class TestCanonDataset(Dataset):
-    def __init__(self, dataroot_dir, N_scenes, transform=None, scene_channels='dualpix_only', assets_dir='./assets/', calib_file_str='calib_whitesheet', roi=[800,1360,800,800]):
+    def __init__(self, dataroot_dir, N_scenes, transform=None, scene_channels='dualpix_mono', assets_dir='./assets/', calib_file_str='calib_whitesheet', roi=[800,1360,800,800]):
         self.dataroot_dir = dataroot_dir
         self.len = N_scenes
         self.transform = transform
@@ -129,7 +129,7 @@ class TestCanonDataset(Dataset):
         img_r = img_r[self.roi[1]:self.roi[1]+self.roi[3],self.roi[0]:self.roi[0]+self.roi[2]]
         img_l = img_l / (self.calib_left+1e-3)
         img_r = img_r / (self.calib_right+1e-3)
-        if self.scene_channels=='dualpix+red+blue' or self.scene_channels=='dualpix_rgb' or self.scene_channels=='normalpix_rgb':
+        if self.scene_channels=='dualpix_rgb' or self.scene_channels=='stdpix_rgb':
             raise NotImplementedError
         else: 
             sample = np.stack((2*img_l, 2*img_r), axis=0)
@@ -174,7 +174,7 @@ class TestPixelXinDataset(Dataset):
         return sample
 
 class TestPixelDataset(Dataset):
-    def __init__(self, dataroot_dir, N_scenes, transform=None, scene_channels='dualpix_only', assets_dir='./assets/', calib_file_str='calib_whitesheet', roi=[800,1360,800,800]):
+    def __init__(self, dataroot_dir, N_scenes, transform=None, scene_channels='dualpix_mono', assets_dir='./assets/', calib_file_str='calib_whitesheet', roi=[800,1360,800,800]):
         self.dataroot_dir = dataroot_dir
         self.len = N_scenes
         self.transform = transform
@@ -215,18 +215,7 @@ class TestPixelDataset(Dataset):
             img_r = img_r[self.roi[1]:self.roi[1]+self.roi[3],self.roi[0]:self.roi[0]+self.roi[2]]
             img_r = np.repeat(img_r, repeats=2, axis=0)
             img_r = img_r / self.calib_right
-        if self.scene_channels=='dualpix+red+blue':
-            raw_img_str = "{:03}_raw.pgm".format(idx+1)
-            with PIL.Image.open(os.path.join(self.dataroot_dir, raw_img_str)) as f: 
-                raw_img = np.array(f).astype(np.float32)/(2**16 - 1)    # 3024 x 4032
-                img_red = raw_img[0::2,0::2]    # 1512 x 2016
-                img_blue = raw_img[1::2,1::2]   # 1512 x 2016
-                img_red = 2*skimage.measure.block_reduce(img_red, (2,2), np.mean)     # 756 x 1008
-                img_blue = 2*skimage.measure.block_reduce(img_blue, (2,2), np.mean)   # 756 x 1008
-                img_red = np.repeat(np.repeat(img_red, 2, axis=0), 2, axis=1)       # 1512 x 2016
-                img_blue = np.repeat(np.repeat(img_blue, 2, axis=0), 2, axis=1)     # 1512 x 2016
-            sample = np.stack((img_l, img_r, img_red, img_blue), axis=0)
-        if self.scene_channels=='dualpix_rgb' or self.scene_channels=='normalpix_rgb':
+        if self.scene_channels=='dualpix_rgb' or self.scene_channels=='stdpix_rgb':
             raise NotImplementedError
         else:
             sample = np.stack((img_l, img_r), axis=0)
@@ -284,12 +273,12 @@ def prepare_test_dataset(args):
                         scene_channels=args.scene_channels, assets_dir=args.assets_dir, calib_file_str=args.calib_file, 
                         roi=args.roi)
     if args.sensor=='canon':
-        if args.scene_channels=='dualpix_rgb' or args.scene_channels=='normalpix_rgb':
+        if args.scene_channels=='dualpix_rgb' or args.scene_channels=='stdpix_rgb':
             dataset = TestCanonRGBDataset(args.dataroot, N_scenes=args.N_renders_override, \
                         transform=tfm.Compose([to_tensor()]),  #transform=tfm.Compose([to_tensor(), tfm.CenterCrop(args.image_size)]), \
                         scene_channels=args.scene_channels, assets_dir=args.assets_dir, calib_file_str=args.calib_file, 
                         roi=args.roi)
-        if args.scene_channels=='dualpix_only' or args.scene_channels=='normalpix_only': 
+        if args.scene_channels=='dualpix_mono' or args.scene_channels=='stdpix_mono': 
             dataset = TestCanonDataset(args.dataroot, N_scenes=args.N_renders_override, \
                         transform=tfm.Compose([to_tensor(), tfm.CenterCrop(args.image_size)]), \
                         scene_channels=args.scene_channels, assets_dir=args.assets_dir, calib_file_str=args.calib_file, 

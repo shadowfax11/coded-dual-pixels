@@ -53,9 +53,7 @@ def get_network_model(args):
     if "defocus" in args.model_output:
         out_channels += 1
     if "aif" in args.model_output: 
-        if args.scene_channels == "dualpix+red+blue" or args.scene_channels == "normalpix+red+blue":
-            out_channels += 3
-        elif args.scene_channels == "dualpix_rgb" or args.scene_channels == "normalpix_rgb": 
+        if args.scene_channels == "dualpix_rgb" or args.scene_channels == "stdpix_rgb": 
             out_channels += 3
         else:
             out_channels += 1
