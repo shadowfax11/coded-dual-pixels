@@ -1,4 +1,4 @@
-# coded-dual-pixels
+# coded-dual-pixels: Coded Aperture Dual-Pixel Sensing (CADS)
 Official Repository for Ghanekar et al. 2024 "Passive Snapshot Coded Aperture Dual-Pixel RGB-D Imaging" 
 
 ## Stay tuned for updates!
