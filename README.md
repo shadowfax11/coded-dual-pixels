@@ -2,6 +2,7 @@
 Official Repository for Ghanekar et al. 2024 "Passive Snapshot Coded Aperture Dual-Pixel RGB-D Imaging" 
 
 ## Stay tuned for updates!
+2024-06-12: Code repo is updated and functioning
 
 ## References/Credit
 Some of the code functions, formatting is taken from other GitHub repos: 
