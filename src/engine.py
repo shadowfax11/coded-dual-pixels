@@ -291,7 +291,6 @@ def validate(dataloader_valid, epoch, psfs_meas, coded_mask, model_optics, model
                     writer.add_scalar('Val/'+metric+' AIF Metric', aif_metric_scores[i].avg, epoch)
                     if logger is not None:
                         logger.info('Validation (Epoch {:03d}): {} AIF Metric: {:03.6f}\n'.format(epoch, metric, aif_metric_scores[i].avg))
-                        logger.flush()
     
     return total_losses.avg, depth_metric_scores[0].avg
 
@@ -474,6 +473,5 @@ def train_one_epoch(dataloader_train, epoch, psfs_meas, coded_mask, model_optics
             if learn_mask:
                 logger.info('Learning Rate for Learnable Mask {:.06f}\n'.format(optimizer_mask.param_groups[0]['lr']))
             logger.info('Learning Rate {:.06f}\n'.format(optimizer.param_groups[0]['lr']))
-            logger.flush()
     
     return coded_mask, model_deconv, model
