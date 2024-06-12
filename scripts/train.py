@@ -27,6 +27,7 @@ from src.learned_mask import LearnedCode
 from src.render import Convolve3DFFT, defocus_to_depth
 from src.engine import train_one_epoch, validate
 from utils.log_utils import init_logging
+import utils.train_utils as train_utils
 
 def main(): 
     # create argument parser
@@ -78,7 +79,7 @@ def main_worker(args):
     args.min_depth_mm = args.z_vals_mm[0]
     args.max_depth_mm = args.z_vals_mm[-1]
     logger.info("Min/Max imaging depth: {}/{} mm\n".format(args.min_depth_mm, args.max_depth_mm))
-    logger.info("Using PSFs at depths", args.z_vals_mm)
+    logger.info("Using PSFs at depths " + ''.join(['{:.4f}'.format(elem) for elem in args.z_vals_mm]))
 
     # load PSF data
     if args.finetune: 
@@ -87,20 +88,21 @@ def main_worker(args):
     psfs_meas = psf_data['PSFstack'].astype(np.float32)         # K x Nz x Nh x Nw
     args.num_psf_channels = psfs_meas.shape[0]
     _, Nz, Nh, Nw = psfs_meas.shape
+    psfs_meas = torch.nn.Parameter(torch.tensor(psfs_meas).unsqueeze(0), requires_grad=False)
     if cuda_available: 
-        psfs_meas = torch.from_numpy(psfs_meas).to(device)
-    assert(Nz == args.num_depth_planes, "Number of depth planes in PSF data does not match the number of depth planes in the scene.")
+        psfs_meas = psfs_meas.to(device)
+    assert Nz == args.num_depth_planes, "Number of depth planes in PSF data does not match the number of depth planes in the scene."
 
     # prepare learned code module 
     blur_sizes_data = './assets/circle_of_confusion_v1.npy' 
     coded_mask = LearnedCode(blur_sizes_data, alpha_init=args.initial_mask_alpha, 
-                            init_mask_fpath=args.initial_mask_filepath, keep_mask_fixed=args.freeze_mask)
+                            init_mask_fpath=args.initial_mask_fpath, keep_mask_fixed=args.freeze_mask)
     
     # prepare 3D convolutional model (for rendering images of 3D scenes) 
     model_optics = Convolve3DFFT(args) 
 
     # get analytical model 
-    model_devonv = Models.get_analytical_model(args, psfs_meas)
+    model_deconv = Models.get_analytical_model(args, psfs_meas)
 
     # get reconstruction neural network model
     model = Models.get_network_model(args) 
@@ -112,13 +114,13 @@ def main_worker(args):
     
     # create dataloaders
     dataset_train = prepare_dataset(args, training=True, train_val_split=False)
-    dataset_val = prepare_dataset(args, training=False, train_val_split=False) 
+    dataset_valid = prepare_dataset(args, training=False, train_val_split=False) 
     dataloader_train = DataLoader(dataset_train, batch_size=args.batch_size, shuffle=True, 
                                 drop_last=True, num_workers=args.num_workers)
-    dataloader_val = DataLoader(dataset_val, batch_size=args.batch_size, shuffle=False,
+    dataloader_valid = DataLoader(dataset_valid, batch_size=1, shuffle=False,
                                 drop_last=False, num_workers=args.num_workers)
     logger.info('Training dataset size: {}'.format(len(dataset_train)))
-    logger.info('Validation dataset size: {}'.format(len(dataset_val)))
+    logger.info('Validation dataset size: {}'.format(len(dataset_valid)))
 
     # create optimizer
     if not args.freeze_mask: 
@@ -131,11 +133,11 @@ def main_worker(args):
 
     # set up learning rate scheduler
     if not args.freeze_mask: 
-        scheduler_mask = optim.lr_scheduler.CosineAnnealingLR(optimizer_mask, T_0=args.num_epochs_for_mask_learning, T_mult=1, eta_min=1e-7)
+        scheduler_mask = optim.lr_scheduler.CosineAnnealingLR(optimizer_mask, T_max=args.num_epochs_for_mask_learning, eta_min=1e-7)
         logger.info('Using cosine decay scheduler for mask learning over {} epochs'.format(args.num_epochs_for_mask_learning))
     if args.scheduler is not None: 
         if args.scheduler == 'cosine': 
-            scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_0=args.num_epochs, T_mult=1, eta_min=1e-7)
+            scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.num_epochs, eta_min=1e-7)
             logger.info('Using cosine decay scheduler for model learning over {} epochs'.format(args.num_epochs))
         elif args.scheduler == 'cosine-annealing-warm-restart':
             raise NotImplementedError

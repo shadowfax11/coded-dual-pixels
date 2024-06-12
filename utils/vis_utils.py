@@ -29,7 +29,8 @@ def tensor2im(image_tensor, imtype=np.uint8, cent=1., factor=255./2.):
 
 def tensor2im_colormapped(image_tensor, rgb_vals, imtype=np.uint8, cent=1., factor=255./2., mask=None): 
     assert imtype == np.uint8, 'imtype should be np.uint8'
-    assert image_tensor.shape[1] == 1, 'input tensor should be 1x1xHxW'
+    if len(image_tensor.shape)==4:
+        assert image_tensor.shape[1] == 1, 'input tensor should be 1x1xHxW'
     image_numpy = image_tensor[0].cpu().squeeze().float().numpy()   # 1x1xHxW -> HxW
     image_numpy = (image_numpy + cent) * factor
     image_numpy = np.clip(image_numpy, 0, 255)

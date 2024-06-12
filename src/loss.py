@@ -110,7 +110,7 @@ def get_loss(pred_dict, gt_dict, defocus_loss_type, depth_loss_type, aif_loss_ty
     return loss, loss_dict
 
 def get_lpips_score(x1,x2):
-    lpips_fn = lpips.LPIPS()
+    lpips_fn = lpips.LPIPS().cuda()
     if x1.shape[1]==1: x1 = x1.repeat(1,3,1,1)
     if x2.shape[1]==1: x2 = x2.repeat(1,3,1,1)
     x1 = torch.clamp(2*(x1-0.5), min=-1, max=+1)

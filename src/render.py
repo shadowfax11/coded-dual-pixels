@@ -4,8 +4,6 @@ import torch.nn.functional as F
 import torch.fft as fft
 import torchvision
 import numpy as np
-import utils.rend_utils as rend_utils
-from utils.pytorch_utils import var_tensor
 
 def defocus_to_depth(defocus_map, L, f, g):
     m = f/g

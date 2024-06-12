@@ -1,3 +1,4 @@
+import os 
 import math 
 import time
 import numpy as np 
@@ -6,9 +7,11 @@ import torch.nn.functional as F
 
 from src.render import add_noise_poisson, add_noise_readout, clip_signal, add_noise_poisson_gauss
 from src.loss import get_loss, get_score 
+from src.render import defocus_to_depth
 
+import utils.train_utils as train_utils
 from utils.log_utils import AverageMeter, ProgressMeter
-from utils.vis_utils import tensor2im, tensor2im_colored, save_image, markdown_visualizer, markdown_visualizer_test
+from utils.vis_utils import tensor2im, tensor2im_colormapped, save_image, markdown_visualizer, markdown_visualizer_test
 from matplotlib import cm
 
 def validate(dataloader_valid, epoch, psfs_meas, coded_mask, model_optics, model_deconv, model, writer, args, logger=None): 
@@ -84,8 +87,8 @@ def validate(dataloader_valid, epoch, psfs_meas, coded_mask, model_optics, model
             coded_psfs_meas, light_efficiency_factor = coded_mask(psfs_meas, training=False, psf_provided=args.finetune)
             # light_efficiency_factor = torch.mean(torch.sum(coded_psfs_meas, dim=(-2,-1), keepdim=True), dim=-3, keepdim=False)
             y_meas = model_optics.forward(scene_gt, depth_gt, coded_psfs_meas)
-            if args.account_for_light_loss:
-                light_attenuation_factor = torch.mean(light_efficiency_factor)
+            # if args.account_for_light_loss:
+            #     light_attenuation_factor = torch.mean(light_efficiency_factor)
             # y_meas = add_noise_poisson(y_meas, args.photon_count_level * light_attenuation_factor)
             # y_meas = add_noise_readout(y_meas, args.readout_noise_level / light_attenuation_factor)
             if args.finetune: 
@@ -182,7 +185,7 @@ def validate(dataloader_valid, epoch, psfs_meas, coded_mask, model_optics, model
                                 "{}/im{}_pred_{}.{}".format(save_image_dir, i_sample, k, save_as_type))
                     if k=='depth':
                         pred_keys.append('depth')
-                        save_image(tensor2im_colored(v, colors, cent=-1*args.min_depth_mm, factor=255./(args.max_depth_mm-args.min_depth_mm)), 
+                        save_image(tensor2im_colormapped(v, colors, cent=-1*args.min_depth_mm, factor=255./(args.max_depth_mm-args.min_depth_mm)), 
                                 "{}/im{}_pred_{}.{}".format(save_image_dir, i_sample, k, save_as_type))
                 gt_keys = []
                 for k, v in gt_dict.items():
@@ -193,7 +196,7 @@ def validate(dataloader_valid, epoch, psfs_meas, coded_mask, model_optics, model
                                 "{}/im{}_gt_{}.{}".format(save_image_dir, i_sample, k, save_as_type))
                     if k=='depth':
                         gt_keys.append('depth')
-                        save_image(tensor2im_colored(v, colors, cent=-1*args.min_depth_mm, factor=255./(args.max_depth_mm-args.min_depth_mm)), 
+                        save_image(tensor2im_colormapped(v, colors, cent=-1*args.min_depth_mm, factor=255./(args.max_depth_mm-args.min_depth_mm)), 
                                 "{}/im{}_gt_{}.{}".format(save_image_dir, i_sample, k, save_as_type))
                 meas_keys = []
                 if args.num_psf_channels==2:
@@ -230,7 +233,7 @@ def validate(dataloader_valid, epoch, psfs_meas, coded_mask, model_optics, model
                                     "{}/im{}_err_{}.{}".format(save_image_dir, i_sample, k, save_as_type))
                         if k=='depth':
                             err_keys.append('depth')
-                            save_image(tensor2im_colored(v, colors, cent=0.0, factor=255./(args.max_depth_mm-args.min_depth_mm)), 
+                            save_image(tensor2im_colormapped(v, colors, cent=0.0, factor=255./(args.max_depth_mm-args.min_depth_mm)), 
                                     "{}/im{}_err_{}.{}".format(save_image_dir, i_sample, k, save_as_type))
             
             if i_sample % args.print_freq == 0:
@@ -357,8 +360,8 @@ def train_one_epoch(dataloader_train, epoch, psfs_meas, coded_mask, model_optics
         coded_psfs_meas, light_efficiency_factor = coded_mask(psfs_meas, training=True, psf_provided=args.finetune)
         # light_efficiency_factor = torch.mean(torch.sum(coded_psfs_meas, dim=(-2,-1), keepdim=True),dim=-3,keepdim=False)
         y_meas = model_optics.forward(scene_gt, depth_gt, coded_psfs_meas)
-        if args.account_for_light_loss: 
-            light_attenuation_factor = torch.mean(light_efficiency_factor)
+        # if args.account_for_light_loss: 
+        #     light_attenuation_factor = torch.mean(light_efficiency_factor)
         # y_meas = add_noise_poisson(y_meas, args.photon_count_level * light_attenuation_factor)
         # y_meas = add_noise_readout(y_meas, args.readout_noise_level / light_attenuation_factor)
         if args.finetune: 

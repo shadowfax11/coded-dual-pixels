@@ -124,7 +124,7 @@ class flyingthings3dDataset(Dataset):
         # dmap[dmap < 0] = 0
         dmap = dmap - np.min(dmap)
         dmap = dmap.astype(np.float32)/np.max(dmap)
-        if self.scene_channels=='dualpix_mono': #if self.dualpix_mono:
+        if self.scene_channels=='dualpix_mono': 
             sample = np.stack((dmap, image), axis=0)
         if self.scene_channels=='stdpix_mono':
             sample = np.stack((dmap, image), axis=0)
@@ -274,11 +274,7 @@ class TestCanonDPDBlurDataset(Dataset):
         return sample
 
 def prepare_dataset(args, training=True, train_val_split=False):
-    if args.dataset_type=="testscenes3d":
-        dataset = testScenesDataset(args.dataroot, train=False, N_scenes=0, train_val_split=False, 
-                                    transform=tfm.Compose([RescaleDepthMap(args.min_depth_mm, args.max_depth_mm), to_tensor()]), 
-                                    scene_channels=args.scene_channels)
-    elif args.dataset_type=='dpdblur':
+    if args.dataset_type=='dpdblur':
         if training: 
             tfm_lst = [to_tensor(), tfm.RandomCrop(384), tfm.RandomHorizontalFlip(), tfm.RandomVerticalFlip()]
             dataset = TestCanonDPDBlurDataset(args.dataroot, train=training, N_scenes=args.N_renders_override, transform=tfm.Compose(tfm_lst))

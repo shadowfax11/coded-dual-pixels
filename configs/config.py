@@ -9,11 +9,12 @@ def config_parser(parser):
     parser.add_argument('--scene_channels', type=str, default='dualpix_mono', 
                         choices=['dualpix_mono', 'dualpix_rgb', 'stdpix_green', 'stdpix_rgb'])
     parser.add_argument('--psf_data_file', type=str, required=True)
-    parser.add_argument('--initial_mask_filepath', type=str, default=None) 
+    parser.add_argument('--initial_mask_fpath', type=str, default=None) 
     parser.add_argument('--light_attenuation_factor', type=float, default=None)
-    parser.add_argument('--min_desired_light_efficiency', type=float, default=None) 
+    parser.add_argument('--min_desired_light_efficiency', type=float, default=0.5) 
     parser.add_argument('--f_number', type=float, required=True) 
     parser.add_argument('--focal_length_mm', type=float, required=True) 
+    parser.add_argument('--in_focus_dist_mm', type=float, required=True)
     parser.add_argument('--pixel_pitch_um', type=float, required=True) 
     parser.add_argument('--max_defocus_blur_size_px', type=float, required=True)
     parser.add_argument('--num_depth_planes', type=int, default=21) 
@@ -37,8 +38,9 @@ def config_parser(parser):
                         default=['defocus', 'aif'], choices=['defocus', 'depth', 'aif'])
     parser.add_argument('--channel_dim', type=int, default=64) 
     parser.add_argument('--normalization', type=str, default='bn', choices=['bn', 'in'])
-    parser.add_argument('final_layer_activation', type=str, default='relu', choices=['relu', 'tanh', 'sigmoid', 'none'])
+    parser.add_argument('--final_layer_activation', type=str, default='relu', choices=['relu', 'tanh', 'sigmoid', 'none'])
     # training params 
+    parser.add_argument('--seed', type=int, default=42)
     parser.add_argument('--debug', action='store_true')
     parser.add_argument('--training_mode', type=str, default='train+validate', choices=['train+validate', 'validation'])
     parser.add_argument('--finetune', action='store_true')
@@ -52,6 +54,7 @@ def config_parser(parser):
     parser.add_argument('--lr_model', type=float, default=1e-4)
     parser.add_argument('--scheduler', type=str, default='cosine', 
                         choices=['cosine', 'cosine-annealing-warm-restart'])
+    parser.add_argument('--load_wts_file', type=str, default=None)
     # loss params 
     parser.add_argument('--add_coded_mask_regularizer', action='store_true') 
     parser.add_argument('--defocus_loss', type=str, nargs='+', 

@@ -5,7 +5,6 @@ from .dpdnet import ParallelDPDNet
 from .deconv import DeconvModel, WienerNet
 from .resunet import ResUnet_VB
 from .resunet_ppm import ResUnet_VB as PPMResUNet_VB
-from .dddnet import DDDNet
 
 import torch.nn as nn
 import torch 
@@ -73,7 +72,7 @@ def get_network_model(args):
         model_network = ResUnet_VB(in_channels, dim=args.channel_dim, out_dim=out_channels)
     if args.model_type=="resunet_ppm":
         model_network = PPMResUNet_VB(in_channels, dim=args.channel_dim, out_dim=out_channels)
-    if args.model_type=="ddd_net":
-        model_network = DDDNet(in_channels, dim=args.channel_dim, out_dim=out_channels)
+    # if args.model_type=="ddd_net":
+    #     model_network = DDDNet(in_channels, dim=args.channel_dim, out_dim=out_channels)
 
     return model_network

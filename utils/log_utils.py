@@ -45,7 +45,7 @@ def init_logging(args):
         stream_handler.setLevel(logging.INFO)
         stream_handler.setFormatter(formatter)
         logger.addHandler(file_handler)
-        # logger.addHandler(stream_handler)
+        logger.addHandler(stream_handler)
     logger.debug("Debug mode activated")
     logger.info("Initialising folders ...") 
     logger.info(pprint_args(args))
