@@ -1,7 +1,7 @@
-if [ $# -lt 1 ]; then
+if [ $# -lt 2 ]; then
   echo 1>&2 "$0: not enough arguments"
   exit 2
-elif [ $# -gt 1 ]; then
+elif [ $# -gt 2 ]; then
   echo 1>&2 "$0: too many arguments"
   exit 2
 fi
