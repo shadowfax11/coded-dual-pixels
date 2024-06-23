@@ -1,6 +1,14 @@
-CUDA_VISIBLE_DEVICES=2 python scripts/train.py \
+if [ $# -lt 1 ]; then
+  echo 1>&2 "$0: not enough arguments"
+  exit 2
+elif [ $# -gt 1 ]; then
+  echo 1>&2 "$0: too many arguments"
+  exit 2
+fi
+
+CUDA_VISIBLE_DEVICES=$1 python scripts/train.py \
 --training_mode train+validate \
---dataroot /mnt/data1/ad74/phasecam3D_SfP_data/render_assets/flyingthings3d/FlyingThings3D_subset/ \
+--dataroot $2 \
 --dataset_type flyingthings3d \
 --num_workers 8 --N_renders_override 20000 \
 --scene_channels dualpix_mono --light_attenuation_factor 1.00 --seed 42 \
